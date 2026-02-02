@@ -1,5 +1,6 @@
 {
   "expo": {
+    "scheme": "leaf-disease-detection",
     "name": "leaf-disease-detection",
     "slug": "leaf-disease-detection",
     "version": "1.0.0",
@@ -20,10 +21,20 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.riyad_reverie.leafdiseasedetection"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "11ea2dd6-49f9-4623-ac16-edb66baf0c30"
+      }
     }
   }
 }
