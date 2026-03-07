@@ -1,2 +1,2 @@
 # leaf-desease-detection
-app link : https://expo.dev/artifacts/eas/bFG4aXUoMYidiZCn9HAkEB.apk
+app link : https://expo.dev/artifacts/eas/pUFENE91p18e4FpVdqmfMS.apk
