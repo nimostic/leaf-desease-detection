@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   StatusBar,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -19,11 +20,21 @@ import ImagePickerCard from "../../src/components/ImagePickerCard";
 import PreviewCard from "../../src/components/PreviewCard";
 import ResultCard from "../../src/components/ResultCard";
 import ActionButton from "../../src/components/ActionButton";
+import ReportButton from "../../src/components/ReportButton";
+import WeatherCard from "../../src/components/WeatherCard";
+import FAQ from "../../src/components/FAQ";
+import InfoSlider from "../../src/components/InfoSlider";
 
 export default function Home() {
   const { user, logout } = useAuth();
   const [image, setImage] = useState(null);
-  const [result, setResult] = useState({ disease: "---", confidence: "---" });
+
+  const [result, setResult] = useState({
+    disease: "---",
+    confidence: "---",
+    details: null,
+  });
+
   const [analyzing, setAnalyzing] = useState(false);
   const router = useRouter();
 
@@ -33,10 +44,12 @@ export default function Home() {
       ? user.email.charAt(0).toUpperCase()
       : "U";
 
+  const userPhoto = user?.photoURL;
+
   const handleLogout = () => {
-    Alert.alert("লগআউট", "আপনি কি নিশ্চিতভাবেই লগআউট করতে চান?", [
-      { text: "না", style: "cancel" },
-      { text: "হ্যাঁ", onPress: () => logout(), style: "destructive" },
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "No", style: "cancel" },
+      { text: "Yes", onPress: () => logout(), style: "destructive" },
     ]);
   };
 
@@ -50,14 +63,17 @@ export default function Home() {
 
     if (!result.canceled) {
       setImage(result.assets[0].uri);
-      setResult({ disease: "---", confidence: "---" });
+      setResult({ disease: "---", confidence: "---", details: null });
     }
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("অনুমতি প্রয়োজন", "ক্যামেরা ব্যবহারের অনুমতি প্রয়োজন।");
+      Alert.alert(
+        "Permission Required",
+        "Camera access is required to take photos.",
+      );
       return;
     }
     let result = await ImagePicker.launchCameraAsync({
@@ -67,23 +83,23 @@ export default function Home() {
     });
     if (!result.canceled) {
       setImage(result.assets[0].uri);
-      setResult({ disease: "---", confidence: "---" });
+      setResult({ disease: "---", confidence: "---", details: null });
     }
   };
 
   const analyzeLeaf = async () => {
     if (!image) {
-      Alert.alert("ছবি নেই", "অনুগ্রহ করে একটি ছবি নির্বাচন করুন!");
+      Alert.alert("No Image", "Please select or take a photo first!");
       return;
     }
 
     setAnalyzing(true);
-    setResult({ disease: "বিশ্লেষণ করা হচ্ছে...", confidence: "---" });
+    setResult({ disease: "Analyzing...", confidence: "---", details: null });
 
     const historyKey = `scanHistory_${user?.email || "guest"}`;
 
     try {
-      // ১. FormData
+      // 1. Prepare FormData for API request
       const formData = new FormData();
       formData.append("image", {
         uri: Platform.OS === "android" ? image : image.replace("file://", ""),
@@ -91,40 +107,52 @@ export default function Home() {
         type: "image/jpeg",
       });
 
-      // ২. api call (pc ip)
-      const response = await fetch("http://192.168.2.109:5000/api/analyze", {
-        method: "POST",
-        body: formData,
-        headers: {
-          "Content-Type": "multipart/form-data",
+      // 2. API Call
+      const response = await fetch(
+        "https://riyadreverie-leaf-disease-detection.hf.space/api/analyze",
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         },
-      });
+      );
 
       const data = await response.json();
-
+      console.log(data);
       if (response.ok) {
-      
+        // 3. Create scan object including treatment details from backend
         const newScan = {
           id: Date.now().toString(),
           date: new Date().toLocaleDateString(),
           disease: data.disease,
           confidence: data.confidence,
+          details: data.details,
           image: image,
         };
 
-        setResult({ disease: newScan.disease, confidence: newScan.confidence });
+        // Update UI state
+        setResult({
+          disease: newScan.disease,
+          confidence: newScan.confidence,
+          details: newScan.details,
+        });
 
+        // 4. Save scan to local history using AsyncStorage
         const existingHistory = await AsyncStorage.getItem(historyKey);
         const history = existingHistory ? JSON.parse(existingHistory) : [];
 
         const updatedHistory = [newScan, ...history];
         await AsyncStorage.setItem(historyKey, JSON.stringify(updatedHistory));
       } else {
-        Alert.alert("Error", data.message || "বিশ্লেষণ ব্যর্থ হয়েছে।");
+        Alert.alert("Error", data.message || "Analysis failed.");
+        setResult({ disease: "---", confidence: "---", details: null });
       }
     } catch (error) {
       console.error("API Error:", error);
-      Alert.alert("Error", "সার্ভারের সাথে সংযোগ করা যাচ্ছে না।");
+      Alert.alert("Error", "Could not connect to the server.");
+      setResult({ disease: "---", confidence: "---", details: null });
     } finally {
       setAnalyzing(false);
     }
@@ -134,13 +162,26 @@ export default function Home() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
+      {/* Header Section */}
       <View style={styles.headerSection}>
         <View style={styles.userInfo}>
-          <View style={styles.profileCircle}>
-            <Text style={styles.profileInitial}>{userInitial}</Text>
-          </View>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => router.push("/(main)/dashboard")}
+          >
+            <View style={styles.profileCircle}>
+              {userPhoto ? (
+                <Image
+                  source={{ uri: userPhoto }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <Text style={styles.profileInitial}>{userInitial}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
           <View>
-            <Text style={styles.welcomeText}>হ্যালো,</Text>
+            <Text style={styles.welcomeText}>Hello,</Text>
             <Text style={styles.userName}>{user?.displayName || "User"}</Text>
           </View>
         </View>
@@ -151,7 +192,7 @@ export default function Home() {
             onPress={() => router.push("/(main)/history")}
           >
             <Ionicons name="time-outline" size={18} color="#fff" />
-            <Text style={styles.historyBtnText}>হিস্ট্রি</Text>
+            <Text style={styles.historyBtnText}>History</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -164,11 +205,17 @@ export default function Home() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <WeatherCard />
+        <View style={styles.sliderWrapper}>
+          <InfoSlider />
+        </View>
+        {/* Image Selection Card */}
         <View style={styles.cardContainer}>
-          <Text style={styles.cardTitle}>পাতার ছবি দিন</Text>
+          <Text style={styles.cardTitle}>Input Leaf Image</Text>
           <ImagePickerCard onUpload={pickImage} onCamera={takePhoto} />
         </View>
 
+        {/* Preview and Analysis Action */}
         {image && (
           <View style={styles.cardContainer}>
             <PreviewCard image={image} />
@@ -182,24 +229,40 @@ export default function Home() {
           </View>
         )}
 
-        {(result.disease !== "---" || analyzing) && (
+        {/* Result Card */}
+        {result.disease !== "---" && !analyzing && (
           <View style={styles.cardContainer}>
-            <Text style={styles.cardTitle}>বিশ্লেষণের ফলাফল</Text>
+            <Text style={styles.cardTitle}>Analysis Result</Text>
             <ResultCard
               disease={result.disease}
               confidence={result.confidence}
+              details={result.details}
             />
+
+            {result.details &&
+              !result.disease.toLowerCase().includes("healthy") && (
+                <ReportButton
+                  result={result}
+                  details={result.details}
+                  user={user}
+                />
+              )}
           </View>
         )}
+
+        <FAQ />
       </ScrollView>
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#F4F7F6",
+  },
+  sliderWrapper: {
+    marginHorizontal: -15,
+    marginBottom: 15,
   },
   headerSection: {
     flexDirection: "row",
@@ -226,11 +289,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#0B8457",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
   profileInitial: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  profileImage: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
   },
   welcomeText: {
     fontSize: 12,

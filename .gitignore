@@ -2,7 +2,6 @@
 
 # dependencies
 node_modules/
-
 # Expo
 .expo/
 dist/
@@ -39,3 +38,13 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+
+google-services.json
+
+
+FAQ.jsx
+ReportButton.jsx
+ResultCard.jsx
+ReportGenerator.jsx
+dashboard.jsx 
